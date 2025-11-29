@@ -1,0 +1,313 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.net.URI;
+import java.util.Random;
+
+public class JarvisAssistant extends JFrame implements ActionListener {
+
+    private JTextArea chatArea;
+    private JTextField commandInput;
+    private JButton sendButton;
+    private JButton speakButton;
+    private String lastResponse = "";
+
+    // Constructor
+    public JarvisAssistant() {
+        setupGUI();
+        addToChat("JARVIS", "Hello Sir! Jarvis is online and ready to assist you!");
+        speak("Hello Sir! Jarvis is online and ready to assist you!");
+    }
+
+    // Setup GUI
+    private void setupGUI() {
+        setTitle("JARVIS - AI Assistant");
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(700, 600);
+        setLocationRelativeTo(null);
+
+        // Main panel with dark theme
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(new Color(20, 20, 30));
+
+        // Title panel
+        JPanel titlePanel = new JPanel();
+        titlePanel.setBackground(new Color(30, 30, 50));
+        JLabel titleLabel = new JLabel("JARVIS - Voice Assistant", JLabel.CENTER);
+        titleLabel.setForeground(new Color(0, 200, 255));
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 20));
+        titlePanel.add(titleLabel);
+
+        // Chat area
+        chatArea = new JTextArea();
+        chatArea.setBackground(new Color(25, 25, 35));
+        chatArea.setForeground(new Color(0, 255, 150));
+        chatArea.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        chatArea.setEditable(false);
+        chatArea.setMargin(new Insets(10, 10, 10, 10));
+
+        JScrollPane scrollPane = new JScrollPane(chatArea);
+        scrollPane.setBorder(BorderFactory.createLineBorder(new Color(0, 150, 255), 2));
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+
+        // Input panel
+        JPanel inputPanel = new JPanel(new BorderLayout());
+        inputPanel.setBackground(new Color(30, 30, 50));
+        inputPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        commandInput = new JTextField();
+        commandInput.setBackground(new Color(40, 40, 60));
+        commandInput.setForeground(Color.WHITE);
+        commandInput.setFont(new Font("Arial", Font.PLAIN, 14));
+        commandInput.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(0, 150, 255), 1),
+                BorderFactory.createEmptyBorder(5, 10, 5, 10)));
+        commandInput.addActionListener(this);
+
+        // Buttons panel
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        buttonPanel.setBackground(new Color(30, 30, 50));
+
+        sendButton = createStyledButton("Send Command", new Color(0, 150, 255));
+        speakButton = createStyledButton("Speak Last", new Color(255, 100, 0));
+        JButton helpButton = createStyledButton("Help", new Color(100, 200, 100));
+        JButton clearButton = createStyledButton("Clear", new Color(200, 100, 100));
+
+        sendButton.addActionListener(this);
+        speakButton.addActionListener(this);
+        helpButton.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                showHelp();
+            }
+        });
+        clearButton.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                chatArea.setText("");
+            }
+        });
+
+        buttonPanel.add(sendButton);
+        buttonPanel.add(speakButton);
+        buttonPanel.add(helpButton);
+        buttonPanel.add(clearButton);
+
+        JLabel commandLabel = new JLabel("Command: ");
+        commandLabel.setForeground(Color.WHITE);
+
+        inputPanel.add(commandLabel, BorderLayout.WEST);
+        inputPanel.add(commandInput, BorderLayout.CENTER);
+        inputPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        mainPanel.add(titlePanel, BorderLayout.NORTH);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        mainPanel.add(inputPanel, BorderLayout.SOUTH);
+
+        add(mainPanel);
+
+        commandInput.requestFocus();
+    }
+
+    private JButton createStyledButton(String text, Color color) {
+        JButton button = new JButton(text);
+        button.setBackground(color);
+        button.setForeground(Color.WHITE);
+        button.setFont(new Font("Arial", Font.BOLD, 12));
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return button;
+    }
+
+    public void speak(String text) {
+        lastResponse = text;
+        Thread speechThread = new Thread(new Runnable() {
+            public void run() {
+                try {
+                    String os = System.getProperty("os.name").toLowerCase();
+
+                    if (os.contains("win")) {
+                        String command = "powershell -Command \"Add-Type -AssemblyName System.Speech; " +
+                                "$speak = New-Object System.Speech.Synthesis.SpeechSynthesizer; " +
+                                "$speak.Speak('" + text.replace("'", "''") + "')\"";
+                        Runtime.getRuntime().exec(command);
+
+                    } else if (os.contains("mac")) {
+                        String[] cmd = {"say", text};
+                        Runtime.getRuntime().exec(cmd);
+
+                    } else {
+                        try {
+                            String[] cmd = {"espeak", text};
+                            Runtime.getRuntime().exec(cmd);
+                        } catch (Exception e1) {
+                            addToChat("SYSTEM", "Text-to-speech not available on this system");
+                        }
+                    }
+                } catch (Exception e) {
+                    addToChat("SYSTEM", "Speech error: " + e.getMessage());
+                }
+            }
+        });
+        speechThread.start();
+    }
+
+    private void processCommand(String command) {
+        command = command.toLowerCase().trim();
+        addToChat("YOU", commandInput.getText());
+
+        String response = "";
+
+        if (command.contains("hello") || command.contains("hi") || command.contains("hey")) {
+            response = "Hello! I'm Jarvis, your AI assistant. How can I help you today?";
+
+        } else if (command.contains("how are you")) {
+            response = "I'm functioning perfectly, thank you for asking! All systems are online.";
+
+        } else if (command.contains("time")) {
+            String currentTime = LocalDateTime.now().format(DateTimeFormatter.ofPattern("h:mm a"));
+            response = "The current time is " + currentTime;
+
+        } else if (command.contains("date") || command.contains("today")) {
+            String currentDate = LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy"));
+            response = "Today is " + currentDate;
+
+        } else if (command.contains("weather")) {
+            response = "I don't have access to real-time weather data, but you can check your weather app.";
+
+        } else if (command.contains("joke")) {
+            String[] jokes = {
+                    "Why don't scientists trust atoms? Because they make up everything!",
+                    "I told my wife she was drawing her eyebrows too high. She looked surprised.",
+                    "Why don't programmers like nature? It has too many bugs!",
+                    "I'm reading a book about anti-gravity. It's impossible to put down!"
+            };
+            response = jokes[new Random().nextInt(jokes.length)];
+
+        } else if (command.contains("open") && command.contains("calculator")) {
+            response = "Opening calculator for you!";
+            openApplication("calc");
+
+        } else if (command.contains("open") && command.contains("notepad")) {
+            response = "Opening notepad for you!";
+            openApplication("notepad");
+
+        } else if (command.contains("search") || command.contains("google")) {
+            String searchQuery = extractSearchQuery(command);
+            response = "Searching for: " + searchQuery;
+            searchWeb(searchQuery);
+
+        } else if (command.contains("youtube")) {
+            String searchQuery = extractSearchQuery(command);
+            response = "Opening YouTube search for: " + searchQuery;
+            searchYouTube(searchQuery);
+
+        } else if (command.contains("shutdown") || command.contains("exit") || command.contains("quit")) {
+            response = "Goodbye! Shutting down Jarvis.";
+            speak(response);
+            addToChat("JARVIS", response);
+            System.exit(0);
+
+        } else if (command.contains("help")) {
+            showHelp();
+            return;
+
+        } else {
+            response = "I'm not sure how to help with that. Try saying 'help'.";
+        }
+
+        addToChat("JARVIS", response);
+        speak(response);
+    }
+
+    private String extractSearchQuery(String command) {
+        command = command.replaceAll("search for|search|google|youtube", "").trim();
+        return command.isEmpty() ? "general search" : command;
+    }
+
+    private void openApplication(String appName) {
+        try {
+            String os = System.getProperty("os.name").toLowerCase();
+            if (os.contains("win")) {
+                Runtime.getRuntime().exec(appName);
+            } else if (os.contains("mac")) {
+                Runtime.getRuntime().exec("open -a " + appName);
+            } else {
+                Runtime.getRuntime().exec(appName);
+            }
+        } catch (IOException e) {
+            addToChat("JARVIS", "Sorry, I couldn't open that application.");
+        }
+    }
+
+    private void searchWeb(String query) {
+        try {
+            String url = "https://www.google.com/search?q=" + query.replace(" ", "+");
+            Desktop.getDesktop().browse(new URI(url));
+        } catch (Exception e) {
+            addToChat("JARVIS", "Sorry, I couldn't open the web browser.");
+        }
+    }
+
+    private void searchYouTube(String query) {
+        try {
+            String url = "https://www.youtube.com/results?search_query=" + query.replace(" ", "+");
+            Desktop.getDesktop().browse(new URI(url));
+        } catch (Exception e) {
+            addToChat("JARVIS", "Sorry, I couldn't open YouTube.");
+        }
+    }
+
+    private void showHelp() {
+        String helpText = "JARVIS COMMANDS:\n\n" +
+                "• Hello/Hi - Greet Jarvis\n" +
+                "• Time - Get current time\n" +
+                "• Date - Get current date\n" +
+                "• Joke - Hear a joke\n" +
+                "• Open calculator/notepad\n" +
+                "• Search for [topic] - Google search\n" +
+                "• YouTube [video] - YouTube search\n" +
+                "• Help - Show commands\n" +
+                "• Exit - Close Jarvis";
+
+        addToChat("JARVIS", helpText);
+        speak("Help commands displayed in chat.");
+    }
+
+    private void addToChat(String speaker, String message) {
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+        chatArea.append("[" + timestamp + "] " + speaker + ": " + message + "\n");
+        chatArea.setCaretPosition(chatArea.getDocument().getLength());
+    }
+
+    public void actionPerformed(ActionEvent e) {
+        if (e.getSource() == sendButton || e.getSource() == commandInput) {
+            String command = commandInput.getText().trim();
+            if (!command.isEmpty()) {
+                processCommand(command);
+                commandInput.setText("");
+                commandInput.requestFocus();
+            }
+        } else if (e.getSource() == speakButton) {
+            if (!lastResponse.isEmpty()) {
+                speak(lastResponse);
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        SwingUtilities.invokeLater(new Runnable() {
+            public void run() {
+                new JarvisAssistant().setVisible(true);
+            }
+        });
+    }
+}
